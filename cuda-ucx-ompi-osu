@@ -1,0 +1,99 @@
+# syntax=docker/dockerfile:1.0.0-experimental
+
+ARG CUDA_VER=12.0.1
+ARG LINUX_VER=ubuntu20.04
+FROM nvidia/cuda:${CUDA_VER}-devel-${LINUX_VER}
+
+ARG LINUX_VER=ubuntu20.04
+ENV LINUX_VER=${LINUX_VER}
+
+# Execute RUN commands in strict mode
+SHELL [ "/bin/bash", "-eo", "pipefail", "-c" ]
+
+RUN apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        `# MOFED requirements` \
+        libnl-3-200 libnl-route-3-200 libnl-3-dev libnl-route-3-dev \
+        `# gdrcopy requirements` \
+        devscripts debhelper fakeroot pkg-config dkms \
+        autoconf automake libtool \
+        openssh-server openssh-client \
+        ca-certificates \
+        wget curl git vim \
+        silversearcher-ag \
+        libnuma-dev numactl \
+        valgrind \
+        flex \
+        pandoc && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -m 700 /root/.ssh \
+    && touch -m 600 /root/.ssh/known_hosts \
+    && ssh-keyscan github.com > /root/.ssh/known_hosts
+
+# Install MOFED
+RUN export MOFED_VER=24.01-0.3.3.1 \
+ && export MOFED_ID=MLNX_OFED_LINUX-${MOFED_VER}-${LINUX_VER}-x86_64 \
+ && cd / \
+ && curl -fsSL http://content.mellanox.com/ofed/MLNX_OFED-${MOFED_VER}/${MOFED_ID}.tgz | tar -xz \
+ && cd ${MOFED_ID} \
+ && dpkg -i $(echo $(find . -false \
+    -or -name 'ibverbs-providers*.deb' \
+    -or -name 'libibverbs*.deb' \
+    -or -name 'librdmacm*.deb')) \
+ && ldconfig
+
+WORKDIR /repos
+ENV CUDA_HOME=/usr/local/cuda
+
+# Install gdrcopy
+ENV GDRCOPY_HOME=/usr/local
+RUN git clone --recursive https://github.com/NVIDIA/gdrcopy.git \
+    && cd gdrcopy \
+    && CUDA=$CUDA_HOME packages/build-deb-packages.sh -k -t \
+    && dpkg -i libgdr*.deb \
+    && ldconfig
+
+# Install UCX
+ENV UCX_HOME=/usr/local
+RUN git clone --recursive https://github.com/openucx/ucx.git \
+    && cd ucx \
+    && ./autogen.sh \
+    && ./contrib/configure-release \
+        --prefix=$UCX_HOME \
+        --with-cuda=$CUDA_HOME \
+        --with-gdrcopy \
+        --enable-mt \
+    && make -j install \
+    && ldconfig
+
+# Install Open MPI
+ENV OMPI_HOME=/usr/local
+RUN git clone --recursive https://github.com/open-mpi/ompi.git \
+    && cd ompi \
+    && ./autogen.pl \
+    && ./configure \
+        --prefix=$OMPI_HOME \
+        --enable-mpirun-prefix-by-default \
+        --with-cuda=$CUDA_HOME \
+        --with-ucx=$UCX_HOME \
+        --with-ucx-libdir=$UCX_HOME/lib \
+        --enable-mca-no-build=btl-uct \
+        --with-hwloc=internal \
+        --with-pmix=internal \
+    && make -j install \
+    && ldconfig
+
+# Install OSU
+ENV OSU_HOME=/usr/local
+RUN export OSU_VER=7.4 \
+    && curl -fsSL https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VER}.tar.gz | tar -xz \
+    && cd osu-micro-benchmarks-${OSU_VER} \
+    && mkdir _build \
+    && cd _build \
+    && ../configure --prefix=$OSU_HOME --enable-cuda \
+                    --with-cuda-include=$CUDA_HOME/include \
+                    --with-cuda-libpath=$CUDA_HOME/lib64 \
+                    CC=$OMPI_HOME/bin/mpicc CXX=$OMPI_HOME/bin/mpicxx \
+    && make -j install
