@@ -5,7 +5,6 @@ ARG LINUX_VER=ubuntu20.04
 FROM nvidia/cuda:${CUDA_VER}-devel-${LINUX_VER}
 
 ARG LINUX_VER=ubuntu20.04
-ENV LINUX_VER=${LINUX_VER}
 
 # Execute RUN commands in strict mode
 SHELL [ "/bin/bash", "-eo", "pipefail", "-c" ]
