@@ -5,9 +5,13 @@ ARG LINUX_VER=ubuntu20.04
 FROM nvidia/cuda:${CUDA_VER}-devel-${LINUX_VER}
 
 ARG LINUX_VER=ubuntu20.04
+# set automatically by Docker
+ARG TARGETARCH
 
 # Execute RUN commands in strict mode
 SHELL [ "/bin/bash", "-eo", "pipefail", "-c" ]
+
+RUN echo "-------- TARGET ARCH: ${TARGETARCH} --------"
 
 RUN apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -33,7 +37,9 @@ RUN mkdir -m 700 /root/.ssh \
 
 # Install MOFED
 ARG MOFED_VER=24.01-0.3.3.1
-RUN export MOFED_ID=MLNX_OFED_LINUX-${MOFED_VER}-${LINUX_VER}-x86_64 \
+RUN if [[ "${TARGETARCH}" = "amd64" ]]; then export ARCH="x86_64"; \
+    else export ARCH="aarch64"; fi \
+ && export MOFED_ID=MLNX_OFED_LINUX-${MOFED_VER}-${LINUX_VER}-${ARCH} \
  && cd / \
  && curl -fsSL http://content.mellanox.com/ofed/MLNX_OFED-${MOFED_VER}/${MOFED_ID}.tgz | tar -xz \
  && cd ${MOFED_ID} \
