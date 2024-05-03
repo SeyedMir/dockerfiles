@@ -32,8 +32,8 @@ RUN mkdir -m 700 /root/.ssh \
     && ssh-keyscan github.com > /root/.ssh/known_hosts
 
 # Install MOFED
-RUN export MOFED_VER=24.01-0.3.3.1 \
- && export MOFED_ID=MLNX_OFED_LINUX-${MOFED_VER}-${LINUX_VER}-x86_64 \
+ARG MOFED_VER=24.01-0.3.3.1
+RUN export MOFED_ID=MLNX_OFED_LINUX-${MOFED_VER}-${LINUX_VER}-x86_64 \
  && cd / \
  && curl -fsSL http://content.mellanox.com/ofed/MLNX_OFED-${MOFED_VER}/${MOFED_ID}.tgz | tar -xz \
  && cd ${MOFED_ID} \
@@ -86,8 +86,8 @@ RUN git clone --recursive https://github.com/open-mpi/ompi.git \
 
 # Install OSU
 ENV OSU_HOME=/usr/local
-RUN export OSU_VER=7.4 \
-    && curl -fsSL https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VER}.tar.gz | tar -xz \
+ARG OSU_VER=7.4
+RUN curl -fsSL https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-${OSU_VER}.tar.gz | tar -xz \
     && cd osu-micro-benchmarks-${OSU_VER} \
     && mkdir _build \
     && cd _build \
