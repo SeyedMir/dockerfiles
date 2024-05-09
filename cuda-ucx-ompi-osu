@@ -102,3 +102,4 @@ RUN curl -fsSL https://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-ben
                     --with-cuda-libpath=$CUDA_HOME/lib64 \
                     CC=$OMPI_HOME/bin/mpicc CXX=$OMPI_HOME/bin/mpicxx \
     && make -j install
+ENV OSU_HOME=${OSU_HOME}/libexec/osu-micro-benchmarks
